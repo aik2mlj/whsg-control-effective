@@ -1,3 +1,4 @@
+import argparse
 import os
 import torch
 import torch.nn.functional as F
@@ -77,17 +78,34 @@ def get_resampled_zchd8(zchd, noise_scale=0.0):
     noise = torch.normal(0.0, 1.0, zchd.shape).to(device)
     zchd_noised = noise * noise_scale + zchd * (1.0 - noise_scale)
     chd = chd8_dec.forward(zchd_noised.reshape(4 * 128, 512), True, 0.0, None)
+    utils.chd8_to_midi_file(chd, "./chd8_resampled.mid")
+
+    nmat_rl = get_nmat_from_midi("./chd8_resampled.mid", [0])
+    num_bar = 128 * 4 * 8
+    chdprmat_rl = utils.nmat_to_chd8(nmat_rl, num_bar // 8, n_beat=32).to(device)
+    utils.chd8_to_midi_file(chdprmat_rl, "./chd8_resampled_writeback.mid")
+
+    zchd_resampled = chd8_enc.forward(chdprmat_rl)
+    chd_nn = chd8_dec.forward(zchd_resampled, True, 0.0, None)
+    utils.chd8_to_midi_file(chd_nn, "./chd8_reresampled.mid")
+    return zchd_resampled.reshape(4, 128, 512)
+
+
+def get_resampled_zchd(zchd, noise_scale=0.0):
+    noise = torch.normal(0.0, 1.0, zchd.shape).to(device)
+    zchd_noised = noise * noise_scale + zchd * (1.0 - noise_scale)
+    chd = polydis_model.chd_decode(zchd_noised.reshape(4 * 512, 256))
     utils.chd8_to_midi_file(chd, "./chd_resampled.mid")
 
     nmat_rl = get_nmat_from_midi("./chd_resampled.mid", [0])
     num_bar = 128 * 4 * 8
-    chdprmat_rl = utils.nmat_to_chd8(nmat_rl, num_bar // 8, n_beat=32).to(device)
+    chdprmat_rl = utils.nmat_to_chd8(nmat_rl, num_bar // 2, n_beat=8).to(device)
     utils.chd8_to_midi_file(chdprmat_rl, "./chd_resampled_writeback.mid")
 
-    zchd_resampled = chd8_enc.forward(chdprmat_rl)
-    chd_nn = chd8_dec.forward(zchd_resampled, True, 0.0, None)
+    zchd_resampled = polydis_model.chd_encode(chdprmat_rl)
+    chd_nn = polydis_model.chd_decode(zchd_resampled)
     utils.chd8_to_midi_file(chd_nn, "./chd_reresampled.mid")
-    return zchd_resampled.reshape(4, 128, 512)
+    return zchd_resampled.reshape(4, 512, 256)
 
 
 def get_resampled_zr(zr, chd, zp=None):
@@ -122,6 +140,7 @@ def get_resampled_ztxt(ztxt):
     acc = polydis_model.pnotree_decode(zchd, ztxt_expand)
     print(acc.shape)
     acc_prmat = polydis_model.pnotree_to_prmat(acc).to(device)
+    utils.prmat_to_midi_file(acc_prmat, "./acc_resampled.mid")
     ztxt_resampled = polydis_model.txt_encode(acc_prmat).reshape(4, 128, -1)
     return ztxt_resampled
 
@@ -187,7 +206,7 @@ def get_chd8_input(dir, tracks):
                 chdnmat, num_bar // 8, n_beat=32
             )
     chd_prmat = chd_prmat.reshape([4, 128, 32, 36])
-    # utils.chd8_to_midi_file(chd_prmat.reshape(128 * 4, 32, 12), f"{dir}/chd_test.mid")
+    utils.chd8_to_midi_file(chd_prmat.reshape(128 * 4, 32, 36), "chd_test.mid")
     chd_prmat = chd_prmat.to(device)
     return chd_prmat
 
@@ -292,6 +311,51 @@ def compute_chd8():
         record_latent_similarity(z_org, z_resampled, txt_fpath, "resampled")
 
 
+def compute_chd():
+    chd_prompt = np.load("./input/chd_prompt.npy")
+    print(chd_prompt.shape)
+    # (4, 32, 128, 36)
+    chd_prompt = torch.from_numpy(chd_prompt).to(device)
+    chd_prompt = (
+        chd_prompt.reshape(4, 32, 16, 8, 36)
+        .reshape(4, 512, 8, 36)
+        .reshape(4 * 512, 8, 36)
+    )
+    utils.chd8_to_midi_file(chd_prompt, "./chd_prompt.mid")
+
+    z_org = polydis_model.chd_encode(chd_prompt)
+    z_org = z_org.reshape(4, 512, 256)
+    print(z_org.shape)
+    z_resampled = get_resampled_zchd(z_org)
+    print(z_resampled.shape)
+
+    chd_cond = get_chd8_input("./input/red", [0]).reshape(4, 512, 8, 36)
+    z_cond = polydis_model.chd_encode(chd_cond.reshape([4 * 512, 8, 36])).reshape(
+        4, 512, -1
+    )
+    print(z_cond.shape)
+    chd_uncond = get_chd8_input("./input/red-uncond", [0]).reshape(4, 512, 8, 36)
+    z_uncond = polydis_model.chd_encode(chd_uncond.reshape([4 * 512, 8, 36])).reshape(
+        4, 512, -1
+    )
+    print(z_uncond.shape)
+
+    txt_fpath = "./chd_sim.txt"
+    record_latent_similarity(z_org, z_cond, txt_fpath, "cond")
+    record_latent_similarity(z_org, z_uncond, txt_fpath, "uncond")
+    record_latent_similarity(z_org, z_resampled, txt_fpath, "resampled")
+
+
 if __name__ == "__main__":
-    compute_chd8()
-    # compute_mel()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--type", help="{acc, mel, chd, chd8}")
+    args = parser.parse_args()
+    match args.type:
+        case "acc":
+            compute_acc()
+        case "mel":
+            compute_mel()
+        case "chd":
+            compute_chd()
+        case "chd8":
+            compute_chd8()

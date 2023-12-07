@@ -138,8 +138,8 @@ def nmat_to_chd8(chd_nmat, num_8bar, n_beat=32):  # only 1 bar
         if len(ps) == 1:
             continue  # only bass changed, ignore
 
-        # root
-        chd[t : min(num_8bar * n_beat, t + d), ps[1] % 12] = 1
+        # bass
+        chd[t : min(num_8bar * n_beat, t + d), ps[0] % 12] = 1
 
         tmp_chd = [p % 12 for p in ps[1:]]
         for p in tmp_chd:
