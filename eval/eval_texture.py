@@ -25,11 +25,14 @@ def compare_feature(est_feature, ref_feature, ord=2):
     # assuming 4/4 songs here, and 16 samples form a feature vector
     # pad to 16k samples for nearest integer k
     length = ((max(len(est_feature), len(ref_feature)) - 1) // 16 + 1) * 16
+    print(length)
     est_feature = np.pad(est_feature, (0, length - len(est_feature)))
     ref_feature = np.pad(ref_feature, (0, length - len(ref_feature)))
-    return np.linalg.norm(
+    print(len(est_feature))
+    result = np.linalg.norm(
         est_feature.reshape((-1, 16)) - ref_feature.reshape((-1, 16)), ord=ord, axis=1
-    ).mean()
+    )
+    return result.mean(), result.std()
 
 
 if __name__ == "__main__":
@@ -37,4 +40,7 @@ if __name__ == "__main__":
 
     est_feature = get_onset_feature_vector(sys.argv[1])
     ref_feature = get_onset_feature_vector(sys.argv[2])
-    print("Average texture vector distance:", compare_feature(est_feature, ref_feature))
+    fpath = sys.argv[3]
+    mean, std = compare_feature(est_feature, ref_feature)
+    with open(fpath, "a") as f:
+        f.write(f"\n{sys.argv[4]}: {mean:.4f}, {std:.4f}")

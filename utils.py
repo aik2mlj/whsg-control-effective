@@ -126,26 +126,47 @@ def nmat_to_chd8(chd_nmat, num_8bar, n_beat=32):  # only 1 bar
     track indicates the chord track in the midi file
     """
     chd = torch.zeros((num_8bar * n_beat, 36))
-    idx = 0
-    chd_nmat = np.array(chd_nmat)
-    while idx < len(chd_nmat):
-        t = chd_nmat[idx][0] // 4
-        d = chd_nmat[idx][2] // 4
-        ps = []
-        while idx < len(chd_nmat) and chd_nmat[idx][0] // 4 == t:
-            ps.append(chd_nmat[idx][1])
-            idx += 1
-        if len(ps) == 1:
-            continue  # only bass changed, ignore
+    total_beats = num_8bar * n_beat
 
-        # bass
-        chd[t : min(num_8bar * n_beat, t + d), ps[0] % 12] = 1
+    tmp_mat = np.empty((total_beats), dtype=object)
+    for i in range(total_beats):
+        tmp_mat[i] = set()
+    for t, p, d in chd_nmat:
+        t4 = t // 4
+        d4 = d // 4
+        for dd in range(d4):
+            if t4 + dd < total_beats:
+                tmp_mat[t4 + dd].add(p)
 
-        tmp_chd = [p % 12 for p in ps[1:]]
-        for p in tmp_chd:
-            chd[t : min(num_8bar * n_beat, t + d), p + 12] = 1
+    for i in range(total_beats):
+        if len(tmp_mat[i]) > 0:
+            ps = sorted(tmp_mat[i])
+            chd[i, ps[0] % 12] = 1
+            for p in ps:
+                chd[i, p % 12 + 12] = 1
+            chd[i, 24] = 1
 
-        chd[t : min(num_8bar * n_beat, t + d), 24] = 1
+    # idx = 0
+    # chd_nmat = np.array(chd_nmat)
+    # while idx < len(chd_nmat):
+    #     t = chd_nmat[idx][0] // 4
+    #     d = chd_nmat[idx][2] // 4
+    #     ps = []
+    #     while idx < len(chd_nmat) and chd_nmat[idx][0] // 4 == t:
+    #         ps.append(chd_nmat[idx][1])
+    #         idx += 1
+    #     # if len(ps) == 1:
+    #     #     continue  # only bass changed, ignore
+    #
+    #     ps.sort()
+    #     # bass
+    #     chd[t : min(num_8bar * n_beat, t + d), ps[0] % 12] = 1
+    #
+    #     tmp_chd = [p % 12 for p in ps if p >= 48]
+    #     for p in tmp_chd:
+    #         chd[t : min(num_8bar * n_beat, t + d), p + 12] = 1
+    #
+    #     chd[t : min(num_8bar * n_beat, t + d), 24] = 1
 
     chd = chd.reshape((num_8bar, n_beat, 36))
     return chd

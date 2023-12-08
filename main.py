@@ -54,8 +54,9 @@ def get_nmat_from_midi(fpath, tracks):
 
 def get_nmats_from_dir(dir, tracks):
     nmats = []
-    for subdir in os.scandir(dir):
+    for subdir in sorted(os.scandir(dir), key=lambda x: x.name):
         if subdir.is_dir():
+            print(subdir.name)
             subnmats = []
             # phrase_config = utils.phrase_config_from_string(subdir.name)
             num_bar = 8
@@ -83,11 +84,12 @@ def get_resampled_zchd8(zchd, noise_scale=0.0):
     nmat_rl = get_nmat_from_midi("./chd8_resampled.mid", [0])
     num_bar = 128 * 4 * 8
     chdprmat_rl = utils.nmat_to_chd8(nmat_rl, num_bar // 8, n_beat=32).to(device)
-    utils.chd8_to_midi_file(chdprmat_rl, "./chd8_resampled_writeback.mid")
+    np.save("./chd8_resampled.npy", chdprmat_rl.cpu().numpy())
+    # utils.chd8_to_midi_file(chdprmat_rl, "./chd8_resampled_writeback.mid")
 
     zchd_resampled = chd8_enc.forward(chdprmat_rl)
-    chd_nn = chd8_dec.forward(zchd_resampled, True, 0.0, None)
-    utils.chd8_to_midi_file(chd_nn, "./chd8_reresampled.mid")
+    # chd_nn = chd8_dec.forward(zchd_resampled, True, 0.0, None)
+    # utils.chd8_to_midi_file(chd_nn, "./chd8_reresampled.mid")
     return zchd_resampled.reshape(4, 128, 512)
 
 
@@ -100,11 +102,11 @@ def get_resampled_zchd(zchd, noise_scale=0.0):
     nmat_rl = get_nmat_from_midi("./chd_resampled.mid", [0])
     num_bar = 128 * 4 * 8
     chdprmat_rl = utils.nmat_to_chd8(nmat_rl, num_bar // 2, n_beat=8).to(device)
-    utils.chd8_to_midi_file(chdprmat_rl, "./chd_resampled_writeback.mid")
+    # utils.chd8_to_midi_file(chdprmat_rl, "./chd_resampled_writeback.mid")
 
     zchd_resampled = polydis_model.chd_encode(chdprmat_rl)
-    chd_nn = polydis_model.chd_decode(zchd_resampled)
-    utils.chd8_to_midi_file(chd_nn, "./chd_reresampled.mid")
+    # chd_nn = polydis_model.chd_decode(zchd_resampled)
+    # utils.chd8_to_midi_file(chd_nn, "./chd_reresampled.mid")
     return zchd_resampled.reshape(4, 512, 256)
 
 
@@ -200,13 +202,14 @@ def get_chd8_input(dir, tracks):
         # [32], nmat, num_bar
         for idx, idx_nmats in enumerate(sub_nmats):
             nmat = idx_nmats[0]
-            num_bar = idx_nmats[1]
+            num_bar = 32
             chdnmat = [x for x in nmat if x[1] < 48]
             chd_prmat[sub, idx, :, :, :] = utils.nmat_to_chd8(
                 chdnmat, num_bar // 8, n_beat=32
             )
+    np.save(f"{dir}/chord_test.npy", chd_prmat.reshape([4, 32, 128, 36]).cpu().numpy())
     chd_prmat = chd_prmat.reshape([4, 128, 32, 36])
-    utils.chd8_to_midi_file(chd_prmat.reshape(128 * 4, 32, 36), "chd_test.mid")
+    utils.chd8_to_midi_file(chd_prmat.reshape(128 * 4, 32, 36), f"{dir}/chd_test.mid")
     chd_prmat = chd_prmat.to(device)
     return chd_prmat
 
@@ -215,8 +218,12 @@ def compute_acc():
     acc_prompt = np.load("./input/acc_prompt.npy")
     print(acc_prompt.shape)
     # (32, 128, 128)
+    acc_expand = (
+        np.expand_dims(acc_prompt, axis=0).repeat(4, axis=0).reshape((512, 32, 128))
+    )
+    # print("expand:", acc_expand.shape)
+    utils.prmat_to_midi_file(acc_expand, "./input/acc_prompt_expand.mid")
     acc_prompt = np.reshape(acc_prompt, (128, 32, 128))
-    utils.prmat_to_midi_file(acc_prompt, "./input/acc_prompt.mid")
     acc_prompt = torch.from_numpy(acc_prompt).to(device)
     z_org = polydis_model.txt_encode(acc_prompt)
     print(z_org.shape)
@@ -244,11 +251,15 @@ def compute_mel():
     mel_prompt = np.load("./input/melody_prompt.npy")
     print(mel_prompt.shape)
     # (32, 128, 142)
+    mel_expand = (
+        np.expand_dims(mel_prompt, axis=0).repeat(4, axis=0).reshape((512, 32, 142))
+    )
+    utils.melprmat_to_midi_file(mel_expand, "./input/mel_prompt_expand.mid")
     mel_prompt = np.reshape(mel_prompt, (128, 32, 142))
     # utils.prmat_to_midi_file(mel_prompt, "./input/acc_prompt.mid")
     mel_prompt = torch.from_numpy(mel_prompt).to(device).float()
     mel_org = mel_prompt[:, :, :130]
-    utils.melprmat_to_midi_file(mel_prompt, "mel_prompt.mid")
+    utils.melprmat_to_midi_file(mel_prompt, "./input/mel_prompt.mid")
     chd_org = mel_prompt[:, :, 130:]
     # utils.chd_ec2vae_to_midi_file(chd_org, "mel_chd_prompt.mid")
     z_org = ec2vae_model.encoder(mel_org, chd_org)[1]
@@ -286,13 +297,7 @@ def compute_chd8():
             .reshape(4, 128, 32, 36)
             .reshape(4 * 128, 32, 36)
         )
-        utils.chd8_to_midi_file(chd8_prompt, "./chd_prompt.mid")
-
-        z_org = chd8_enc.forward(chd8_prompt)
-        z_org = z_org.reshape(4, 128, 512)
-        print(z_org.shape)
-        z_resampled = get_resampled_zchd8(z_org)
-        print(z_resampled.shape)
+        utils.chd8_to_midi_file(chd8_prompt, "./input/chd_prompt.mid")
 
         chd8_cond = get_chd8_input("./input/red", [0])
         z_cond = chd8_enc.forward(chd8_cond.reshape([4 * 128, 32, 36])).reshape(
@@ -304,6 +309,12 @@ def compute_chd8():
             4, 128, -1
         )
         print(z_uncond.shape)
+
+        z_org = chd8_enc.forward(chd8_prompt)
+        z_org = z_org.reshape(4, 128, 512)
+        print(z_org.shape)
+        z_resampled = get_resampled_zchd8(z_org)
+        print(z_resampled.shape)
 
         txt_fpath = "./chd8_sim.txt"
         record_latent_similarity(z_org, z_cond, txt_fpath, "cond")
@@ -321,7 +332,7 @@ def compute_chd():
         .reshape(4, 512, 8, 36)
         .reshape(4 * 512, 8, 36)
     )
-    utils.chd8_to_midi_file(chd_prompt, "./chd_prompt.mid")
+    utils.chd8_to_midi_file(chd_prompt, "./input/chd_prompt.mid")
 
     z_org = polydis_model.chd_encode(chd_prompt)
     z_org = z_org.reshape(4, 512, 256)

@@ -1,12 +1,10 @@
-from mir import DataEntry
-from mir import io
-from extractors.midi_utilities import is_percussive_channel, MidiBeatExtractor
+import sys
+
+import numpy as np
+from chord_class import ChordClass
+from extractors.midi_utilities import is_percussive_channel
 from extractors.rule_based_channel_reweight import midi_to_thickness_and_bass_weights
 from midi_chord import ChordRecognition
-from chord_class import ChordClass
-import mir_eval
-import numpy as np
-import sys
 
 
 def process_chord(entry, extra_division):
@@ -57,7 +55,7 @@ def process_chord(entry, extra_division):
     return chord
 
 
-def eval_chord(midi_path, gt_npy_path, norm_ord=2):
+def eval_chord(npy_path, gt_npy_path, norm_ord=2):
     """
     Perform chord evaluation
     :param midi_path: the path to the midi file
@@ -67,19 +65,11 @@ def eval_chord(midi_path, gt_npy_path, norm_ord=2):
     gt_arr = np.load(gt_npy_path)
     assert gt_arr.shape[-1] == 36, "chord data should be 36-D"
     gt_arr = gt_arr.reshape(-1, gt_arr.shape[-1])
-    est_arr = np.zeros_like(gt_arr)
-    entry = DataEntry()
-    entry.append_file(midi_path, io.MidiIO, "midi")
-    entry.append_extractor(MidiBeatExtractor, "beat")
-    results = process_chord(entry, extra_division=1)
-    for [s, t, chord] in results:
-        chord_root, chord_chroma, chord_bass = mir_eval.chord.encode(chord)
-        if chord_root < 0 or chord_root >= 12:  # N or X
-            continue
-        est_arr[s : t + 1, chord_root] = 1
-        est_arr[s : t + 1, 12:24] = np.roll(chord_chroma, chord_root)[None]
-        est_arr[s : t + 1, 24 + chord_bass] = 1
-    return np.linalg.norm(est_arr - gt_arr, ord=norm_ord, axis=-1).mean()
+    est_arr = np.load(npy_path)
+    assert est_arr.shape[-1] == 36, "chord data should be 36-D"
+    est_arr = est_arr.reshape(-1, est_arr.shape[-1])
+    result = np.linalg.norm(est_arr - gt_arr, ord=norm_ord, axis=-1)
+    return result.mean(), result.std()
 
 
 if __name__ == "__main__":
@@ -90,8 +80,7 @@ if __name__ == "__main__":
     # chd = "/home/aik2/Learn/ComputerMusic/Models/06_transformer_arrangement_ziyu/ismir_demo/polydis_sample/chd.npy"
     midi = sys.argv[1]
     chd = sys.argv[2]
-    print(
-        f"Average chord vector distance (L{norm_ord} norm): ",
-        # eval_chord('exp/polyf_wm/chd_cond.mid', R'exp/polyf_wm/chd.npy', norm_ord)
-        eval_chord(midi, chd, norm_ord),
-    )
+    fpath = sys.argv[3]
+    mean, std = eval_chord(midi, chd, norm_ord)
+    with open(fpath, "a") as f:
+        f.write(f"\n{sys.argv[4]}: {mean:.4f}, {std:.4f}")

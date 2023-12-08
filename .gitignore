@@ -1,7 +1,9 @@
 __pycache__
-/chd8bar
-/ec2vae
+# /chd8bar
+# /ec2vae
 /input
-/poly_dis
+# /poly_dis
 /*.mid
+*.pt
+*.npy
 
