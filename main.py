@@ -1,5 +1,12 @@
 """
-This is the main script that computes the control effects.
+This is the main script that computes the latent similarity of the given controls
+and the generated outputs, hence evaluating the control effectiveness.
+
+Generated output & Control types:
+`--type=acc`: Accompaniment conditioned on given texture (see Polydis).
+`--type=mel`: Melody conditioned on given rhythm (see EC2VAE).
+`--type=chd/chd8`: Chords conditioned on given chord (see Polydis).
+
 """
 
 
