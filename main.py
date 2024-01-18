@@ -1,3 +1,8 @@
+"""
+This is the main script that computes the control effects.
+"""
+
+
 import argparse
 import os
 import torch
@@ -241,10 +246,10 @@ def compute_acc():
     )
     print(z_uncond.shape)
 
-    txt_fpath = "./txt_sim.txt"
-    record_latent_similarity(z_org, z_cond, txt_fpath, "cond")
-    record_latent_similarity(z_org, z_uncond, txt_fpath, "uncond")
-    record_latent_similarity(z_org, z_resampled, txt_fpath, "resampled")
+    fpath = "./results/txt_sim.txt"
+    record_latent_similarity(z_org, z_cond, fpath, "cond")
+    record_latent_similarity(z_org, z_uncond, fpath, "uncond")
+    record_latent_similarity(z_org, z_resampled, fpath, "resampled")
 
 
 def compute_mel():
@@ -279,10 +284,10 @@ def compute_mel():
     )[1].reshape(4, 128, -1)
     print(z_uncond.shape)
 
-    mel_fpath = "./mel_sim.txt"
-    record_latent_similarity(z_org, z_cond, mel_fpath, "cond")
-    record_latent_similarity(z_org, z_uncond, mel_fpath, "uncond")
-    record_latent_similarity(z_org, z_resampled, mel_fpath, "resampled")
+    fpath = "./results/mel_sim.txt"
+    record_latent_similarity(z_org, z_cond, fpath, "cond")
+    record_latent_similarity(z_org, z_uncond, fpath, "uncond")
+    record_latent_similarity(z_org, z_resampled, fpath, "resampled")
 
 
 def compute_chd8():
@@ -316,10 +321,10 @@ def compute_chd8():
         z_resampled = get_resampled_zchd8(z_org)
         print(z_resampled.shape)
 
-        txt_fpath = "./chd8_sim.txt"
-        record_latent_similarity(z_org, z_cond, txt_fpath, "cond")
-        record_latent_similarity(z_org, z_uncond, txt_fpath, "uncond")
-        record_latent_similarity(z_org, z_resampled, txt_fpath, "resampled")
+        fpath = "./results/chd8_sim.txt"
+        record_latent_similarity(z_org, z_cond, fpath, "cond")
+        record_latent_similarity(z_org, z_uncond, fpath, "uncond")
+        record_latent_similarity(z_org, z_resampled, fpath, "resampled")
 
 
 def compute_chd():
@@ -351,10 +356,10 @@ def compute_chd():
     )
     print(z_uncond.shape)
 
-    txt_fpath = "./chd_sim.txt"
-    record_latent_similarity(z_org, z_cond, txt_fpath, "cond")
-    record_latent_similarity(z_org, z_uncond, txt_fpath, "uncond")
-    record_latent_similarity(z_org, z_resampled, txt_fpath, "resampled")
+    fpath = "./results/chd_sim.txt"
+    record_latent_similarity(z_org, z_cond, fpath, "cond")
+    record_latent_similarity(z_org, z_uncond, fpath, "uncond")
+    record_latent_similarity(z_org, z_resampled, fpath, "resampled")
 
 
 if __name__ == "__main__":
